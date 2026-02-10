@@ -6,21 +6,20 @@ import {
   Trash2, 
   Phone, 
   MessageCircle, 
-  ShieldCheck, 
-  UserPlus,
   Target,
   FileText,
-  FileJson,
   Table,
   Info,
   Clock,
   Users,
-  ChevronRight,
   X,
   Edit3,
   Check,
-  FileCode,
-  Download
+  Download,
+  Share2,
+  Trash,
+  Settings,
+  ChevronLeft
 } from 'lucide-react';
 import { Trainee, ExportFormat } from './types';
 import { extractNamesFromTranscript } from './services/geminiService';
@@ -31,68 +30,64 @@ const App: React.FC = () => {
   const [transcript, setTranscript] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [showSupport, setShowSupport] = useState(false);
-  const [lastAdded, setLastAdded] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState('');
 
   const recognitionRef = useRef<any>(null);
 
   useEffect(() => {
-    const saved = localStorage.getItem('shooting_range_names');
-    if (saved) {
-      setNames(JSON.parse(saved));
-    }
+    const saved = localStorage.getItem('cairo_shooting_v4');
+    if (saved) setNames(JSON.parse(saved));
   }, []);
 
   useEffect(() => {
-    localStorage.setItem('shooting_range_names', JSON.stringify(names));
-    if (names.length > 0) {
-      setLastAdded(names[0].timestamp);
-    }
+    localStorage.setItem('cairo_shooting_v4', JSON.stringify(names));
   }, [names]);
 
   const startListening = () => {
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SpeechRecognition) {
-      alert("متصفحك لا يدعم التعرف على الصوت. يرجى استخدام Chrome.");
-      return;
-    }
+    if (!SpeechRecognition) return;
 
     recognitionRef.current = new SpeechRecognition();
     recognitionRef.current.lang = 'ar-EG';
     recognitionRef.current.continuous = false;
-    recognitionRef.current.interimResults = false;
-
-    recognitionRef.current.onstart = () => setIsListening(true);
-    recognitionRef.current.onresult = async (event: any) => {
-      const currentTranscript = event.results[0][0].transcript;
-      setTranscript(currentTranscript);
-      setIsListening(false);
-      handleTranscript(currentTranscript);
+    
+    recognitionRef.current.onstart = () => {
+      setIsListening(true);
+      if (window.navigator.vibrate) window.navigator.vibrate(30);
     };
+
+    recognitionRef.current.onresult = async (event: any) => {
+      const text = event.results[0][0].transcript;
+      setTranscript(text);
+      setIsListening(false);
+      processTranscript(text);
+    };
+
     recognitionRef.current.onerror = () => setIsListening(false);
     recognitionRef.current.onend = () => setIsListening(false);
     recognitionRef.current.start();
   };
 
-  const handleTranscript = async (text: string) => {
+  const processTranscript = async (text: string) => {
     setIsProcessing(true);
-    const extractedNames = await extractNamesFromTranscript(text);
-    
-    if (extractedNames.length > 0) {
-      const newTrainees: Trainee[] = extractedNames.map(name => ({
+    const extracted = await extractNamesFromTranscript(text);
+    if (extracted.length > 0) {
+      const now = new Date();
+      const timeStr = now.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' });
+      const newEntries = extracted.map(name => ({
         id: crypto.randomUUID(),
         name: name.trim(),
-        timestamp: new Date().toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })
+        timestamp: timeStr
       }));
-      setNames(prev => [...newTrainees, ...prev]);
+      setNames(prev => [...newEntries, ...prev]);
+      if (window.navigator.vibrate) window.navigator.vibrate([50, 30]);
     }
     setIsProcessing(false);
   };
 
-  const startEditing = (id: string, currentName: string) => {
-    setEditingId(id);
-    setEditValue(currentName);
+  const deleteItem = (id: string) => {
+    setNames(prev => prev.filter(n => n.id !== id));
   };
 
   const saveEdit = () => {
@@ -102,367 +97,229 @@ const App: React.FC = () => {
     }
   };
 
-  const exportToWord = () => {
+  const exportDoc = () => {
     if (names.length === 0) return;
-    
-    const header = `<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
-      <head><meta charset='utf-8'><title>قائمة الحضور</title>
+    const dateStr = new Date().toLocaleDateString('ar-EG');
+    const htmlContent = `
+      <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40' dir='rtl'>
+      <head><meta charset='utf-8'><title>رماية القاهرة</title>
       <style>
-        table { border-collapse: collapse; width: 100%; direction: rtl; font-family: 'Arial', sans-serif; }
-        th, td { border: 1px solid black; padding: 8px; text-align: right; }
-        th { background-color: #f2f2f2; }
-        h2 { text-align: center; color: #cc0000; }
-      </style>
-      </head><body>
-      <h2>مركز الرماية بالقاهرة - قائمة الحضور</h2>
-      <table>
-        <thead>
-          <tr>
-            <th>م</th>
-            <th>الاسم</th>
-            <th>الوقت</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${names.map((n, i) => `
-            <tr>
-              <td>${i + 1}</td>
-              <td>${n.name}</td>
-              <td>${n.timestamp}</td>
-            </tr>
-          `).join('')}
-        </tbody>
-      </table>
-      <p style='text-align:center; font-size:10px;'>تم الاستخراج بواسطة نظام تلاشاني</p>
+        body { font-family: 'Arial', sans-serif; }
+        table { border-collapse: collapse; width: 100%; border: 1px solid #000; direction: rtl; }
+        th, td { border: 1px solid #000; padding: 10px; text-align: center; }
+        th { background-color: #f2f2f2; font-weight: bold; }
+        .h { text-align: center; font-size: 18pt; margin-bottom: 20px; }
+      </style></head><body>
+        <div class='h'>مركز تدريب الرماية - القاهرة</div>
+        <div style='text-align:center;'>كشف حضور المتدربين بتاريخ: ${dateStr}</div>
+        <br>
+        <table><thead><tr><th>م</th><th>الاسم الكامل</th><th>الوقت</th></tr></thead>
+        <tbody>${names.map((n, i) => `<tr><td>${i+1}</td><td>${n.name}</td><td>${n.timestamp}</td></tr>`).join('')}</tbody></table>
+        <br><p style='text-align:center; font-size:9pt;'>برمجة: تلاشاني | 01140029315</p>
       </body></html>`;
-
-    const blob = new Blob([header], { type: 'application/msword' });
+    const blob = new Blob([htmlContent], { type: 'application/msword' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `حضور_رماية_القاهرة_${new Date().toISOString().split('T')[0]}.doc`;
+    link.download = `حضور_رماية_${dateStr.replace(/\//g, '-')}.doc`;
     link.click();
-    URL.revokeObjectURL(url);
   };
 
-  const exportData = (format: ExportFormat) => {
-    if (names.length === 0) return;
-    let content = '';
-    let mimeType = '';
-    let fileName = `رماية_القاهرة_${new Date().toLocaleDateString('ar-EG').replace(/\//g, '-')}`;
+  const exportFiles = (format: ExportFormat) => {
+    let content = "";
+    let mime = "text/plain";
+    const dateStr = new Date().toLocaleDateString('ar-EG');
 
     if (format === ExportFormat.CSV) {
-      content = "\ufeffالاسم,الوقت\n" + names.map(n => `${n.name},${n.timestamp}`).join('\n');
-      mimeType = 'text/csv';
-      fileName += '.csv';
-    } else if (format === ExportFormat.JSON) {
-      content = JSON.stringify(names, null, 2);
-      mimeType = 'application/json';
-      fileName += '.json';
+      // \ufeff is the BOM for Excel to recognize Arabic characters correctly
+      content = "\ufeffم,الاسم,الوقت\n" + names.map((n, i) => `${i+1},${n.name},${n.timestamp}`).join('\n');
+      mime = "text/csv;charset=utf-8";
     } else {
-      content = "قائمة متدربي الرماية - القاهرة\n" + "=".repeat(30) + "\n" + names.map(n => `${n.name} [${n.timestamp}]`).join('\n');
-      mimeType = 'text/plain';
-      fileName += '.txt';
+      content = "مركز الرماية بالقاهرة\n" + "=".repeat(20) + "\n" + names.map((n, i) => `${i+1}. ${n.name} [${n.timestamp}]`).join('\n');
+      mime = "text/plain;charset=utf-8";
     }
 
-    const blob = new Blob([content], { type: `${mimeType};charset=utf-8` });
-    const url = URL.createObjectURL(blob);
+    const blob = new Blob([content], { type: mime });
     const link = document.createElement('a');
-    link.href = url;
-    link.download = fileName;
+    link.href = URL.createObjectURL(blob);
+    link.download = `رماية_${format}.${format}`;
     link.click();
-    URL.revokeObjectURL(url);
-  };
-
-  const deleteName = (id: string) => {
-    setNames(prev => prev.filter(n => n.id !== id));
   };
 
   return (
-    <div className="min-h-screen bg-[#020617] text-slate-50 font-['Cairo']">
-      {/* Top Gradient Bar */}
-      <div className="h-1.5 w-full bg-gradient-to-r from-red-600 via-amber-500 to-red-600"></div>
-
-      {/* Header */}
-      <header className="glass sticky top-0 z-40 border-b border-white/5 backdrop-blur-xl">
-        <div className="max-w-5xl mx-auto px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <div className="bg-gradient-to-br from-red-500 to-red-700 p-2.5 rounded-xl shadow-lg shadow-red-900/20 rotate-3 transition-transform hover:rotate-0">
-              <Target className="w-7 h-7 text-white" />
-            </div>
-            <div>
-              <h1 className="text-xl font-black tracking-tight bg-clip-text text-transparent bg-gradient-to-l from-white to-slate-400">
-                مركز الرماية بالقاهرة
-              </h1>
-              <div className="flex items-center gap-2 text-[10px] uppercase tracking-widest text-red-500 font-bold">
-                <span>النسخة الاحترافية V2</span>
-                <span className="w-1 h-1 rounded-full bg-red-500 animate-pulse"></span>
-                <span>تلاشاني</span>
-              </div>
-            </div>
+    <div className="h-screen w-screen max-w-md mx-auto flex flex-col overflow-hidden relative">
+      
+      {/* Dynamic App Bar */}
+      <header className="px-5 pt-8 pb-3 flex items-center justify-between z-40 bg-black/40 backdrop-blur-md">
+        <div className="flex items-center gap-2">
+          <div className="w-8 h-8 bg-red-600 rounded-lg flex items-center justify-center text-white shadow-lg">
+            <Target className="w-5 h-5" />
           </div>
-          
-          <button 
-            onClick={() => setShowSupport(true)}
-            className="flex items-center gap-2 px-4 py-2 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 transition-all group"
-          >
-            <span className="text-sm font-semibold group-hover:text-red-400">الدعم</span>
-            <Info className="w-4 h-4 text-slate-400 group-hover:rotate-12 transition-transform" />
-          </button>
+          <div>
+            <h1 className="text-sm font-black tracking-tight leading-none">رماية القاهرة</h1>
+            <span className="text-[8px] text-red-500 font-bold tracking-widest uppercase">Smart Core V4</span>
+          </div>
+        </div>
+        <div className="flex gap-2">
+          <button onClick={() => setShowSupport(true)} className="p-2 text-slate-400"><Info className="w-5 h-5" /></button>
         </div>
       </header>
 
-      {/* Stats & Controls */}
-      <div className="max-w-5xl mx-auto px-6 mt-6 grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="glass p-4 rounded-2xl flex items-center gap-3 border-white/5">
-          <div className="p-2 bg-blue-500/10 rounded-lg"><Users className="w-5 h-5 text-blue-400" /></div>
-          <div>
-            <p className="text-[10px] text-slate-400 uppercase">المسجلين</p>
-            <p className="text-lg font-bold tracking-tighter">{names.length}</p>
-          </div>
-        </div>
-        <div className="glass p-4 rounded-2xl flex items-center gap-3 border-white/5">
-          <div className="p-2 bg-amber-500/10 rounded-lg"><Clock className="w-5 h-5 text-amber-400" /></div>
-          <div>
-            <p className="text-[10px] text-slate-400 uppercase">آخر إضافة</p>
-            <p className="text-lg font-bold tracking-tighter">{lastAdded || '--:--'}</p>
-          </div>
-        </div>
-        <div className="hidden md:flex glass p-4 rounded-2xl items-center gap-3 border-white/5 col-span-2">
-           <div className="p-2 bg-green-500/10 rounded-lg"><ShieldCheck className="w-5 h-5 text-green-400" /></div>
-           <p className="text-sm text-slate-300">يتم حفظ البيانات تلقائياً، يمكنك تعديل أي اسم بالضغط عليه.</p>
-        </div>
-      </div>
-
-      <main className="max-w-5xl mx-auto px-6 py-8 space-y-8">
+      {/* Main Surface */}
+      <main className="flex-1 overflow-y-auto px-5 pt-4 pb-32 no-scrollbar space-y-4">
         
-        {/* Modern Mic Section */}
-        <section className="relative overflow-hidden glass rounded-[2.5rem] p-12 border-white/10 group shadow-2xl">
-          <div className="absolute top-0 right-0 w-80 h-80 bg-red-600/5 blur-[120px] -mr-40 -mt-40"></div>
-          
+        {/* Compact Stats Grid */}
+        <div className="grid grid-cols-2 gap-3">
+          <div className="compact-card p-3 rounded-2xl flex items-center justify-between">
+            <Users className="w-4 h-4 text-blue-400" />
+            <div className="text-left">
+              <span className="text-[8px] font-bold text-slate-500 uppercase block leading-none">المسجلين</span>
+              <span className="text-xl font-black">{names.length}</span>
+            </div>
+          </div>
+          <div className="compact-card p-3 rounded-2xl flex items-center justify-between">
+            <Clock className="w-4 h-4 text-amber-400" />
+            <div className="text-left">
+              <span className="text-[8px] font-bold text-slate-500 uppercase block leading-none">آخر دخول</span>
+              <span className="text-xl font-black tracking-tighter">{names[0]?.timestamp || '--:--'}</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Focused Mic Control */}
+        <div className="relative compact-card rounded-3xl p-6 flex flex-col items-center justify-center overflow-hidden transition-all">
           <div className="relative z-10 flex flex-col items-center">
-            <div className="relative mb-8 group/btn">
-              {isListening && (
-                <div className="absolute inset-0 animate-ping bg-red-500 rounded-full opacity-20 scale-[1.8] duration-[2000ms]"></div>
+            <button 
+              onClick={isListening ? () => recognitionRef.current?.stop() : startListening}
+              className={`relative w-20 h-20 rounded-full flex items-center justify-center shadow-xl transition-all active:scale-90 ${isListening ? 'bg-red-600' : 'bg-zinc-800'}`}
+            >
+              {isListening ? (
+                <MicOff className="w-8 h-8 text-white animate-pulse" />
+              ) : (
+                <Mic className="w-8 h-8 text-slate-300" />
               )}
-              <button
-                onClick={isListening ? () => recognitionRef.current?.stop() : startListening}
-                className={`w-32 h-32 rounded-full flex items-center justify-center shadow-2xl transition-all duration-700 relative ${
-                  isListening 
-                    ? 'bg-red-600 rotate-90 scale-110 shadow-red-500/50' 
-                    : 'bg-slate-800 hover:bg-slate-700 hover:scale-105 active:scale-95 border border-white/10 shadow-black'
-                }`}
-              >
-                {isListening ? <MicOff className="w-12 h-12" /> : <Mic className="w-12 h-12" />}
-              </button>
+              {isListening && <div className="absolute inset-0 border-4 border-white/20 rounded-full animate-ping"></div>}
+            </button>
+            <h3 className="text-sm font-black mt-3">{isListening ? 'تحدث الآن' : 'اضغط للتسجيل'}</h3>
+          </div>
+          {isProcessing && (
+            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-20">
+              <div className="w-6 h-6 border-2 border-red-500 border-t-transparent rounded-full animate-spin"></div>
             </div>
-            
-            <div className="text-center space-y-3">
-              <h2 className="text-4xl font-black italic tracking-tighter">
-                {isListening ? 'أنا أسمعك...' : 'ابدأ التسجيل'}
-              </h2>
-              <p className="text-slate-400 text-sm font-medium">
-                انطق الأسماء بوضوح وسيقوم الذكاء الاصطناعي بتنظيمها في الجدول
-              </p>
-            </div>
+          )}
+        </div>
 
-            {isProcessing && (
-              <div className="mt-10 flex items-center gap-4 px-8 py-4 bg-red-500/10 rounded-full border border-red-500/20 text-red-500 animate-pulse font-black text-sm">
-                <UserPlus className="w-6 h-6" />
-                <span>جاري معالجة البيانات...</span>
-              </div>
-            )}
+        {/* Transcription Preview (Slim) */}
+        {transcript && !isProcessing && (
+          <div className="bg-zinc-900/50 p-3 rounded-xl border border-white/5 text-center">
+            <p className="text-[11px] text-slate-400 italic">"{transcript}"</p>
+          </div>
+        )}
 
-            {transcript && !isProcessing && (
-              <div className="mt-8 p-6 rounded-3xl bg-white/5 border border-white/5 w-full max-w-2xl text-center shadow-inner">
-                <p className="text-slate-500 text-[10px] mb-2 uppercase tracking-[0.2em] font-black">النص المستلم</p>
-                <p className="text-slate-200 text-lg font-medium italic">"{transcript}"</p>
-              </div>
+        {/* Compact Actionable List */}
+        <div className="space-y-2">
+          <div className="flex items-center justify-between px-1 mb-1">
+            <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">سجل المتدربين اليوم</span>
+            {names.length > 0 && (
+              <button onClick={() => setNames([])} className="text-[9px] text-red-500 font-bold uppercase">تصفير</button>
             )}
           </div>
-        </section>
 
-        {/* Professional Table Section */}
-        <section className="space-y-6">
-          <div className="flex items-center justify-between px-2">
-             <div className="flex items-center gap-4">
-                <div className="w-3 h-10 bg-red-600 rounded-full"></div>
-                <div>
-                   <h3 className="text-2xl font-black italic">جدول الحضور اليومي</h3>
-                   <p className="text-[10px] text-slate-500 uppercase font-bold">يمكنك الضغط على الاسم لتعديله</p>
-                </div>
-             </div>
-             {names.length > 0 && (
-                <button 
-                  onClick={() => { if(confirm('تنبيه: سيتم مسح جميع الأسماء نهائياً!')) setNames([]) }}
-                  className="px-5 py-2.5 rounded-xl bg-red-950/30 text-red-500 hover:bg-red-500 hover:text-white transition-all text-xs font-bold border border-red-900/50"
-                >
-                  تصفير الجدول
-                </button>
-             )}
-          </div>
-
-          <div className="glass rounded-[2rem] overflow-hidden border-white/5 shadow-2xl">
-            <table className="w-full text-right border-collapse">
-              <thead>
-                <tr className="bg-white/5 border-b border-white/10">
-                  <th className="px-6 py-5 text-slate-400 font-black text-xs uppercase w-16 text-center">م</th>
-                  <th className="px-6 py-5 text-slate-400 font-black text-xs uppercase">الاسم الكامل</th>
-                  <th className="px-6 py-5 text-slate-400 font-black text-xs uppercase w-32">وقت الوصول</th>
-                  <th className="px-6 py-5 text-slate-400 font-black text-xs uppercase w-32 text-center">الإجراءات</th>
-                </tr>
-              </thead>
-              <tbody>
-                {names.length === 0 ? (
-                  <tr>
-                    <td colSpan={4} className="py-24 text-center">
-                       <div className="flex flex-col items-center opacity-20">
-                          <Target className="w-20 h-20 mb-4" />
-                          <p className="text-xl font-black">لا توجد بيانات حالياً</p>
-                       </div>
-                    </td>
-                  </tr>
-                ) : (
-                  names.map((item, index) => (
-                    <tr key={item.id} className="border-b border-white/5 hover:bg-white/[0.02] transition-colors group">
-                      <td className="px-6 py-4 text-center text-slate-500 font-black font-mono">
-                        {index + 1}
-                      </td>
-                      <td className="px-6 py-4">
-                        {editingId === item.id ? (
-                          <div className="flex items-center gap-2">
-                            <input 
-                              autoFocus
-                              type="text"
-                              value={editValue}
-                              onChange={(e) => setEditValue(e.target.value)}
-                              onKeyDown={(e) => e.key === 'Enter' && saveEdit()}
-                              className="bg-slate-800 border border-blue-500 rounded-lg px-3 py-1.5 text-white w-full outline-none focus:ring-2 ring-blue-500/20"
-                            />
-                            <button onClick={saveEdit} className="p-2 bg-blue-600 rounded-lg text-white hover:bg-blue-500">
-                              <Check className="w-4 h-4" />
-                            </button>
-                          </div>
-                        ) : (
-                          <span 
-                            onClick={() => startEditing(item.id, item.name)}
-                            className="text-lg font-bold text-slate-200 cursor-pointer hover:text-red-400 transition-colors flex items-center gap-2"
-                          >
-                            {item.name}
-                            <Edit3 className="w-3 h-3 opacity-0 group-hover:opacity-40" />
-                          </span>
-                        )}
-                      </td>
-                      <td className="px-6 py-4">
-                        <span className="text-sm font-mono text-slate-500 bg-slate-900/50 px-3 py-1 rounded-full border border-white/5">
-                          {item.timestamp}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="flex justify-center gap-2">
-                           <button 
-                            onClick={() => deleteName(item.id)}
-                            className="p-2 rounded-xl bg-red-500/0 hover:bg-red-500/10 text-slate-600 hover:text-red-500 transition-all opacity-0 group-hover:opacity-100"
-                           >
-                            <Trash2 className="w-5 h-5" />
-                           </button>
+          <div className="space-y-2">
+            {names.length === 0 ? (
+              <div className="py-12 flex flex-col items-center opacity-10">
+                <Target className="w-12 h-12" />
+                <span className="text-[8px] font-bold mt-2 tracking-widest">لا مدخلات</span>
+              </div>
+            ) : (
+              names.map((item, index) => (
+                <div key={item.id} className="compact-card p-3 rounded-xl flex items-center justify-between active:bg-white/5">
+                  <div className="flex items-center gap-3 overflow-hidden flex-1">
+                    <span className="text-[10px] font-black text-slate-600 w-4 text-center">{names.length - index}</span>
+                    <div className="flex-1 overflow-hidden">
+                      {editingId === item.id ? (
+                        <input 
+                          autoFocus
+                          value={editValue}
+                          onChange={(e) => setEditValue(e.target.value)}
+                          onBlur={saveEdit}
+                          onKeyDown={(e) => e.key === 'Enter' && saveEdit()}
+                          className="bg-transparent border-b border-red-500 text-sm font-bold w-full outline-none py-0.5 text-white"
+                        />
+                      ) : (
+                        <div onClick={() => { setEditingId(item.id); setEditValue(item.name); }} className="flex items-center gap-1.5 truncate">
+                          <span className="text-sm font-bold truncate">{item.name}</span>
+                          <Edit3 className="w-2.5 h-2.5 text-slate-600 shrink-0" />
                         </div>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
+                      )}
+                      <span className="text-[8px] font-bold text-slate-600 uppercase tracking-tighter block">{item.timestamp}</span>
+                    </div>
+                  </div>
+                  <button onClick={() => deleteItem(item.id)} className="p-2 text-slate-700 active:text-red-500"><Trash className="w-4 h-4" /></button>
+                </div>
+              ))
+            )}
           </div>
-        </section>
+        </div>
       </main>
 
-      {/* Modern Export Bar */}
+      {/* Docked Compact Action Bar */}
       {names.length > 0 && (
-        <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-50">
-          <div className="glass px-3 py-3 rounded-[2rem] flex items-center gap-2 shadow-[0_30px_60px_rgba(0,0,0,0.8)] border-white/10 backdrop-blur-3xl border">
-            <div className="px-4 text-[10px] font-black uppercase text-slate-500 ml-2 hidden md:block">تصدير الملفات</div>
-            
+        <div className="fixed bottom-0 left-0 right-0 p-4 z-40 bg-gradient-to-t from-black via-black/80 to-transparent">
+          <div className="bg-zinc-900 border border-white/10 p-1.5 rounded-2xl flex items-center gap-1.5 shadow-2xl">
             <button 
-              onClick={exportToWord}
-              className="group flex items-center gap-2 bg-blue-700 hover:bg-blue-600 px-6 py-3 rounded-[1.5rem] text-xs font-black transition-all hover:scale-105"
+              onClick={exportDoc}
+              className="flex-1 bg-red-600 text-white h-11 rounded-xl flex items-center justify-center gap-2 text-xs font-black shadow-lg shadow-red-600/20 active:scale-95 transition-all"
             >
-              <FileCode className="w-4 h-4" /> 
-              <span>Word جدول</span>
+              <FileText className="w-4 h-4" /> Word
             </button>
-
             <button 
-              onClick={() => exportData(ExportFormat.CSV)}
-              className="group flex items-center gap-2 bg-emerald-700 hover:bg-emerald-600 px-6 py-3 rounded-[1.5rem] text-xs font-black transition-all hover:scale-105"
+              onClick={() => exportFiles(ExportFormat.CSV)}
+              className="w-11 h-11 rounded-xl bg-zinc-800 flex items-center justify-center text-blue-400 active:bg-zinc-700"
             >
-              <Table className="w-4 h-4" /> CSV
+              <Table className="w-4 h-4" />
             </button>
-
             <button 
-              onClick={() => exportData(ExportFormat.TXT)}
-              className="group flex items-center gap-2 bg-slate-700 hover:bg-slate-600 px-6 py-3 rounded-[1.5rem] text-xs font-black transition-all hover:scale-105"
+              onClick={() => exportFiles(ExportFormat.TXT)}
+              className="w-11 h-11 rounded-xl bg-zinc-800 flex items-center justify-center text-emerald-400 active:bg-zinc-700"
             >
-              <FileText className="w-4 h-4" /> نصي
-            </button>
-            
-            <button 
-              onClick={() => exportData(ExportFormat.JSON)}
-              className="p-3 bg-amber-600/20 hover:bg-amber-600 text-amber-500 hover:text-white rounded-full transition-all"
-              title="JSON"
-            >
-              <Download className="w-5 h-5" />
+              <Download className="w-4 h-4" />
             </button>
           </div>
         </div>
       )}
 
-      {/* Support Modal */}
+      {/* Support Sheet */}
       {showSupport && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/80 backdrop-blur-md animate-in fade-in duration-300">
-          <div className="relative glass max-w-md w-full rounded-[3rem] p-12 border-white/10 shadow-[0_0_100px_rgba(239,68,68,0.15)] animate-in zoom-in-95 duration-300">
-            <button onClick={() => setShowSupport(false)} className="absolute top-8 left-8 p-2 rounded-full hover:bg-white/10 transition-colors">
-              <X className="w-6 h-6 text-slate-500" />
-            </button>
-
-            <div className="space-y-10">
-              <div className="text-center">
-                <div className="w-24 h-24 rounded-[2rem] bg-gradient-to-tr from-red-600 to-amber-500 mx-auto mb-6 flex items-center justify-center shadow-xl shadow-red-900/40">
-                  <UserPlus className="w-12 h-12 text-white" />
-                </div>
-                <h3 className="text-4xl font-black italic tracking-tighter uppercase mb-2">تلاشاني</h3>
-                <p className="text-slate-500 text-sm font-bold uppercase tracking-widest">تطوير البرمجيات الذكية</p>
-              </div>
-              
-              <div className="space-y-4">
-                <a href="tel:01140029315" className="flex items-center justify-between p-5 bg-white/5 border border-white/5 rounded-[1.5rem] hover:bg-white/10 transition-all group">
-                  <div className="flex items-center gap-4">
-                    <div className="p-3 rounded-xl bg-emerald-500/10 text-emerald-500 group-hover:bg-emerald-500/20">
-                      <Phone className="w-6 h-6" />
-                    </div>
-                    <div>
-                      <p className="text-[10px] text-slate-500 font-bold">اتصال مباشر</p>
-                      <p className="font-black text-xl" dir="ltr">01140029315</p>
-                    </div>
-                  </div>
-                </a>
-
-                <a href="https://t.me/Tlashani" target="_blank" rel="noreferrer" className="flex items-center justify-between p-5 bg-blue-600/10 border border-blue-500/20 rounded-[1.5rem] hover:bg-blue-600/20 transition-all group">
-                  <div className="flex items-center gap-4">
-                    <div className="p-3 rounded-xl bg-blue-500/20 text-blue-400 group-hover:bg-blue-500/30">
-                      <MessageCircle className="w-6 h-6" />
-                    </div>
-                    <div>
-                      <p className="text-[10px] text-slate-500 font-bold">تليجرام</p>
-                      <p className="font-black text-xl" dir="ltr">@Tlashani</p>
-                    </div>
-                  </div>
-                </a>
-              </div>
-
-              <div className="pt-6 border-t border-white/5 text-center">
-                 <p className="text-[10px] font-black text-slate-700 tracking-[0.4em] uppercase">Cairo Shooting Range • 2024</p>
-              </div>
+        <div className="fixed inset-0 z-[60] flex items-end justify-center bg-black/70 backdrop-blur-md">
+          <div className="w-full max-w-md sheet p-8 rounded-t-[2.5rem] animate-in slide-in-from-bottom duration-300 pb-12">
+            <div className="w-10 h-1 bg-zinc-800 rounded-full mx-auto mb-8"></div>
+            <div className="flex flex-col items-center mb-8">
+              <div className="w-16 h-16 bg-red-600 rounded-2xl flex items-center justify-center shadow-xl mb-4"><Target className="w-10 h-10" /></div>
+              <h2 className="text-2xl font-black italic">تلاشاني</h2>
+              <span className="text-[8px] font-black text-slate-500 uppercase tracking-widest">Premium Software Studio</span>
             </div>
+            <div className="space-y-3">
+              <a href="tel:01140029315" className="flex items-center justify-between p-4 bg-zinc-800/50 rounded-2xl active:bg-zinc-800 border border-white/5">
+                <div className="flex items-center gap-4">
+                  <div className="w-10 h-10 bg-emerald-500/10 flex items-center justify-center text-emerald-500 rounded-xl"><Phone className="w-5 h-5" /></div>
+                  <div>
+                    <p className="text-[8px] font-bold text-slate-500 uppercase mb-0.5">اتصل بنا</p>
+                    <p className="font-black text-lg" dir="ltr">01140029315</p>
+                  </div>
+                </div>
+              </a>
+              <a href="https://t.me/Tlashani" target="_blank" rel="noreferrer" className="flex items-center justify-between p-4 bg-zinc-800/50 rounded-2xl active:bg-zinc-800 border border-white/5">
+                <div className="flex items-center gap-4">
+                  <div className="w-10 h-10 bg-blue-500/10 flex items-center justify-center text-blue-400 rounded-xl"><MessageCircle className="w-5 h-5" /></div>
+                  <div>
+                    <p className="text-[8px] font-bold text-slate-500 uppercase mb-0.5">تليجرام</p>
+                    <p className="font-black text-lg" dir="ltr">@Tlashani</p>
+                  </div>
+                </div>
+              </a>
+            </div>
+            <button onClick={() => setShowSupport(false)} className="w-full mt-6 py-4 text-[10px] font-black uppercase text-slate-500 tracking-widest">إغلاق</button>
           </div>
         </div>
       )}
