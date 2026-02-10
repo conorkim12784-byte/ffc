@@ -1,0 +1,7 @@
+{
+  "name": "Cairo Shooting Range - Voice Registration",
+  "description": "نظام تسجيل الأسماء في مركز تدريب الرماية بالقاهرة عن طريق الصوت مع إمكانية تصدير البيانات بصيغ مختلفة.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
