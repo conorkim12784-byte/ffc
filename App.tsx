@@ -37,6 +37,7 @@ const App: React.FC = () => {
   const [showExportModal, setShowExportModal] = useState(false);
   const [fileName, setFileName] = useState('');
   const [pendingFormat, setPendingFormat] = useState<ExportFormat | 'DOCX' | null>(null);
+  const [showSuccessToast, setShowSuccessToast] = useState(false);
 
   const recognitionRef = useRef<any>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -122,57 +123,58 @@ const App: React.FC = () => {
     }
     setShowExportModal(false);
     setPendingFormat(null);
+    
+    // Show success animation
+    setShowSuccessToast(true);
+    setTimeout(() => setShowSuccessToast(false), 3000);
   };
 
   const executeDocxExport = () => {
+    // We use a specific HTML structure that Microsoft Word recognizes as a valid document.
+    // Using .doc extension with application/msword is the most compatible way to export HTML tables to Word without a library.
     const dateStr = new Date().toLocaleDateString('ar-EG');
-    // Generating standard MHTML/HTML for Word which is the most reliable browser-side DOCX emulation
-    const html = `
-      <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40' dir='rtl'>
-      <head>
-        <meta charset='utf-8'>
-        <style>
-          @page { size: A4; margin: 2cm; }
-          body { font-family: 'Arial', sans-serif; direction: rtl; }
-          .header { text-align: center; border-bottom: 2pt solid #00a884; margin-bottom: 30px; padding-bottom: 10px; }
-          .title { font-size: 24pt; color: #00a884; font-weight: bold; }
-          table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-          th { background-color: #00a884; color: white; border: 1pt solid #333; padding: 10px; font-size: 14pt; }
-          td { border: 1pt solid #333; padding: 8px; text-align: center; font-size: 12pt; }
-          .footer { margin-top: 50px; text-align: center; font-size: 10pt; color: #666; font-style: italic; }
-        </style>
-      </head>
-      <body>
-        <div class='header'>
-          <div class='title'>كشف رماية القاهرة</div>
-          <p>تاريخ الكشف: ${dateStr}</p>
-        </div>
-        <table>
-          <thead>
-            <tr>
-              <th style='width: 10%'>م</th>
-              <th style='width: 65%'>الاسم الكامل للمجند</th>
-              <th style='width: 25%'>توقيت التسجيل</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${names.map((n, i) => `
-              <tr>
-                <td>${i + 1}</td>
-                <td style='text-align: right; padding-right: 15px;'>${n.name}</td>
-                <td>${n.timestamp}</td>
-              </tr>`).join('')}
-          </tbody>
-        </table>
-        <div class='footer'>تم الاستخراج بواسطة نظام تلاشاني الذكي للرماية</div>
-      </body>
-      </html>`;
+    const header = `<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+    <head><meta charset='utf-8'><title>Export</title>
+    <!--[if gte mso 9]><xml><w:WordDocument><w:View>Print</w:View><w:Zoom>90</w:Zoom><w:DoNotOptimizeForBrowser/></w:WordDocument></xml><![endif]-->
+    <style>
+    body { font-family: 'Arial', sans-serif; direction: rtl; }
+    table { border-collapse: collapse; width: 100%; border: 1px solid black; }
+    th, td { border: 1px solid black; padding: 10px; text-align: center; }
+    th { background-color: #00a884; color: white; font-weight: bold; }
+    .title { text-align: center; font-size: 20pt; font-weight: bold; margin-bottom: 20px; color: #00a884; }
+    </style>
+    </head><body>`;
     
-    const blob = new Blob(['\ufeff', html], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
+    const footer = `</body></html>`;
+    
+    const tableHtml = `
+      <div class="title">كشف أسماء الرماية - ${dateStr}</div>
+      <table>
+        <thead>
+          <tr>
+            <th style="width: 15%">م</th>
+            <th style="width: 85%">الاسم الكامل</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${names.map((n, i) => `
+            <tr>
+              <td>${i + 1}</td>
+              <td style="text-align: right; padding-right: 20px;">${n.name}</td>
+            </tr>`).join('')}
+        </tbody>
+      </table>
+    `;
+
+    const fullHtml = header + tableHtml + footer;
+    
+    // Using application/msword ensures Word opens it correctly. 
+    // We name it .doc to avoid "Corrupt File" warnings triggered by modern Word when opening HTML as .docx.
+    const blob = new Blob(['\ufeff', fullHtml], { type: 'application/msword' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `${fileName}.docx`;
+    link.download = `${fileName}.doc`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -217,6 +219,16 @@ const App: React.FC = () => {
   return (
     <div className="h-screen w-full flex flex-col bg-transparent relative overflow-hidden font-['Cairo'] text-white">
       
+      {/* Success Toast */}
+      {showSuccessToast && (
+        <div className="fixed top-20 left-1/2 -translate-x-1/2 z-[200] animate-in slide-in-from-top duration-500">
+          <div className="bg-[#00e676] text-[#0b141a] px-6 py-2 rounded-full font-black text-xs shadow-2xl flex items-center gap-2">
+            <ShieldCheck className="w-4 h-4" />
+            تم حفظ الكشف بنجاح
+          </div>
+        </div>
+      )}
+
       {/* Main Glassy Layout */}
       <div className="w-full max-w-md mx-auto h-full flex flex-col relative z-30 bg-[#0b141a]/95 shadow-2xl border-x border-white/5">
         
@@ -230,7 +242,7 @@ const App: React.FC = () => {
               <h1 className="text-xs font-black uppercase tracking-widest text-white/90">رماية القاهرة</h1>
               <div className="flex items-center gap-1.5 -mt-1">
                  <div className="w-1 h-1 rounded-full bg-[#00e676] shadow-[0_0_5px_#00e676]"></div>
-                 <span className="text-[7px] font-bold text-[#00e676]/60 tracking-[0.2em]">ULTRA v17</span>
+                 <span className="text-[7px] font-bold text-[#00e676]/60 tracking-[0.2em]">ULTRA v18</span>
               </div>
             </div>
           </div>
@@ -249,7 +261,7 @@ const App: React.FC = () => {
         <div className="bg-[#111b21]/60 backdrop-blur-md px-5 py-1 flex justify-between items-center text-[9px] font-black text-white/30 border-b border-white/5">
             <div className="flex items-center gap-2">
               <Users className="w-3 h-3 text-[#00e676]" />
-              <span className="bg-white/5 px-2 py-0.5 rounded-md text-[#00e676]">{names.length}</span>
+              <span className="bg-white/5 px-2 py-0.5 rounded-md text-[#00e676] font-bold">{names.length}</span>
             </div>
             <div className="flex items-center gap-2">
               <Clock className="w-3 h-3 text-[#00e676]/40" />
@@ -290,7 +302,7 @@ const App: React.FC = () => {
                         />
                       ) : (
                         <div className="flex items-center gap-3">
-                           <div className="w-7 h-7 rounded-lg bg-white/5 flex items-center justify-center text-[10px] font-black text-white/20 group-hover:text-[#00e676] transition-colors">
+                           <div className="w-7 h-7 rounded-lg bg-white/5 flex items-center justify-center text-[10px] font-black text-white/20 group-hover:text-[#00e676] transition-colors shadow-inner">
                               {idx + 1}
                            </div>
                            <h4 
@@ -370,7 +382,7 @@ const App: React.FC = () => {
                   <FileText className="w-6 h-6 text-[#00e676]" />
                </div>
             </div>
-            <h3 className="text-[11px] font-black text-white text-center uppercase tracking-[0.3em] mb-4">اسم الكشف الجديد</h3>
+            <h3 className="text-[11px] font-black text-white text-center uppercase tracking-[0.3em] mb-4 italic">اسم الكشف الجديد</h3>
             <input 
               autoFocus
               value={fileName}
@@ -456,7 +468,7 @@ const App: React.FC = () => {
                 <ShieldCheck className="w-5 h-5" />
               </button>
               
-              <p className="text-[8px] font-black text-white/10 uppercase tracking-[1em] text-center">Protected by Tlashani AI</p>
+              <p className="text-[8px] font-black text-white/10 uppercase tracking-[1em] text-center italic">Protected by Tlashani AI</p>
             </div>
           </div>
         </div>
