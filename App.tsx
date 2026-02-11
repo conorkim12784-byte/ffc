@@ -9,19 +9,17 @@ import {
   Target,
   FileText,
   Table,
-  Info,
   Clock,
   Users,
-  Edit3,
   Download,
-  ChevronLeft,
   Settings,
   CheckCheck,
   MoreVertical,
-  X,
-  Cpu,
   Scan,
-  Save
+  Save,
+  Send,
+  X,
+  Plus
 } from 'lucide-react';
 import { Trainee, ExportFormat } from './types';
 import { extractNamesFromTranscript } from './services/geminiService';
@@ -43,18 +41,17 @@ const App: React.FC = () => {
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const saved = localStorage.getItem('shooting_range_ultra_v14');
+    const saved = localStorage.getItem('shooting_range_ultra_v15');
     if (saved) setNames(JSON.parse(saved));
     
-    // Splash screen timer
     const timer = setTimeout(() => {
       setHasEntered(true);
-    }, 2500);
+    }, 2000);
     return () => clearTimeout(timer);
   }, []);
 
   useEffect(() => {
-    localStorage.setItem('shooting_range_ultra_v14', JSON.stringify(names));
+    localStorage.setItem('shooting_range_ultra_v15', JSON.stringify(names));
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
@@ -114,66 +111,88 @@ const App: React.FC = () => {
 
   const confirmExport = () => {
     if (!fileName.trim()) return;
-    
     if (pendingFormat === 'DOC') {
       executeDocExport();
     } else if (pendingFormat) {
       executeFileExport(pendingFormat as ExportFormat);
     }
-    
     setShowExportModal(false);
     setPendingFormat(null);
   };
 
   const executeDocExport = () => {
+    const dateStr = new Date().toLocaleDateString('ar-EG');
     const html = `
       <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40' dir='rtl'>
       <head>
         <meta charset='utf-8'>
         <style>
-          body { font-family: 'Arial', sans-serif; direction: rtl; padding: 40px; }
-          .header { border: 2pt solid #00e676; padding: 20px; text-align: center; margin-bottom: 25px; }
-          .title { font-size: 24pt; font-weight: bold; color: #00a884; }
-          table { border-collapse: collapse; width: 100%; border: 1.5pt solid black; }
-          th { background-color: #00e676; color: black; border: 1pt solid black; padding: 12px; font-weight: bold; }
-          td { border: 1pt solid black; padding: 10px; text-align: center; }
-          .footer { text-align: center; font-size: 10pt; color: #666; margin-top: 50px; }
+          @page { size: A4; margin: 1.5cm; }
+          body { font-family: 'Arial', sans-serif; direction: rtl; padding: 20px; line-height: 1.5; color: #333; }
+          .header { border: 3pt double #00a884; padding: 20px; text-align: center; margin-bottom: 35px; background-color: #f9fdfc; }
+          .title { font-size: 26pt; font-weight: bold; color: #00a884; margin: 0; text-decoration: underline; }
+          .subtitle { font-size: 14pt; color: #444; margin-top: 8px; font-weight: bold; }
+          table { border-collapse: collapse; width: 100%; border: 1.5pt solid black; margin-top: 25px; table-layout: fixed; }
+          th { background-color: #00a884; color: white; border: 1pt solid black; padding: 15px; font-weight: bold; text-align: center; font-size: 14pt; }
+          td { border: 1pt solid black; padding: 12px; text-align: center; font-size: 13pt; vertical-align: middle; word-wrap: break-word; }
+          .footer-section { margin-top: 60px; text-align: center; border-top: 1pt solid #ddd; padding-top: 20px; }
+          .dev-tag { font-size: 12pt; font-weight: bold; color: #555; margin-bottom: 10px; }
+          .contact-link { text-decoration: none; font-weight: bold; padding: 5px; }
+          .whatsapp { color: #25D366; }
+          .telegram { color: #0088cc; }
+          .meta-info { text-align: right; margin-bottom: 10px; font-weight: bold; font-size: 12pt; }
         </style>
       </head>
       <body>
         <div class="header">
-          <div class="title">كشف حضور الرماية - القاهرة</div>
-          <div style="font-size: 14pt;">نظام تلاشاني الذكي</div>
+          <div class="title">كشف حضور رماية القاهرة</div>
+          <div class="subtitle">نظام التسجيل الصوتي الرقمي - نسخة المجندين</div>
         </div>
+        <div class="meta-info">بتاريخ: ${dateStr} <br/> إجمالي العدد المقيد: ${names.length}</div>
         <table>
           <thead>
             <tr>
-              <th width="10%">م</th>
-              <th width="65%">الاسم</th>
-              <th width="25%">الوقت</th>
+              <th style="width: 10%;">م</th>
+              <th style="width: 65%;">الاسم الكامل</th>
+              <th style="width: 25%;">الوقت</th>
             </tr>
           </thead>
           <tbody>
-            ${names.map((n, i) => `<tr><td>${i + 1}</td><td>${n.name}</td><td>${n.timestamp}</td></tr>`).join('')}
+            ${names.map((n, i) => `
+              <tr>
+                <td style="background-color: #fcfcfc;">${i + 1}</td>
+                <td style="text-align: right; padding-right: 20px;">${n.name}</td>
+                <td>${n.timestamp}</td>
+              </tr>`).join('')}
           </tbody>
         </table>
-        <div class="footer">تم الاستخراج بتاريخ: ${new Date().toLocaleDateString('ar-EG')}</div>
+        <div class="footer-section">
+          <div class="dev-tag">تم استخراج هذا الكشف آلياً بواسطة نظام تلاشاني الذكي</div>
+          <div style="font-size: 11pt;">
+            للدعم الفني أو التعديلات: <br/>
+            تواصل عبر الواتساب: <a href="https://wa.me/201282735262" class="contact-link whatsapp">01282735262</a> | 
+            تواصل عبر التليجرام: <a href="https://t.me/+201282735262" class="contact-link telegram">@Tlashani</a>
+          </div>
+        </div>
       </body>
-      </html>
-    `;
-    const blob = new Blob(['\ufeff', html], { type: 'application/msword;charset=utf-8' });
+      </html>`;
+    
+    const blob = new Blob(['\ufeff', html], { type: 'application/vnd.ms-word' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
     link.download = `${fileName}.doc`;
+    document.body.appendChild(link);
     link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   };
 
   const executeFileExport = (format: ExportFormat) => {
     let content = "";
     let mime = "text/plain";
     if (format === ExportFormat.CSV) {
-      content = "\ufeffم,الاسم,الوقت\n" + names.map((n, i) => `${i+1},${n.name},${n.timestamp}`).join('\n');
+      content = "\ufeffم,الاسم الكامل,وقت التسجيل\n" + names.map((n, i) => `${i+1},${n.name},${n.timestamp}`).join('\n');
       mime = "text/csv;charset=utf-8";
     } else {
       content = "كشف رماية القاهرة\n" + names.map((n, i) => `${i+1}. ${n.name} [${n.timestamp}]`).join('\n');
@@ -182,7 +201,9 @@ const App: React.FC = () => {
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
     link.download = `${fileName}.${format}`;
+    document.body.appendChild(link);
     link.click();
+    document.body.removeChild(link);
   };
 
   if (!hasEntered) {
@@ -190,180 +211,190 @@ const App: React.FC = () => {
       <div className="fixed inset-0 z-[1000] flex flex-col items-center justify-center bg-[#0b141a]">
         <div className="absolute inset-0 chat-pattern"></div>
         <div className="relative animate-float">
-          <div className="absolute inset-0 bg-[#00e676] blur-[100px] opacity-20 scale-150"></div>
-          <div className="w-36 h-36 glass-card rounded-[3rem] flex items-center justify-center border-white/10 shadow-[0_0_50px_rgba(0,230,118,0.3)] relative z-10">
-             <Target className="w-20 h-20 text-[#00e676]" />
-             <div className="absolute inset-0 shimmer opacity-10"></div>
+          <div className="absolute inset-0 bg-[#00e676] blur-[80px] opacity-10 scale-125"></div>
+          <div className="w-28 h-28 glass-card rounded-[2rem] flex items-center justify-center border-white/5 shadow-2xl relative z-10">
+             <Target className="w-14 h-14 text-[#00e676]" />
+             <div className="absolute inset-0 shimmer opacity-5"></div>
           </div>
         </div>
-        <div className="mt-12 text-center relative z-10">
-           <h1 className="text-4xl font-black text-white italic tracking-tighter mb-2">رماية القاهرة</h1>
-           <p className="text-[#00e676] text-[10px] font-black uppercase tracking-[0.8em] opacity-80">PRO SYSTEM V14</p>
+        <div className="mt-8 text-center relative z-10">
+           <h1 className="text-2xl font-black text-white italic tracking-tighter mb-1">رماية القاهرة</h1>
+           <p className="text-[#00e676] text-[8px] font-black uppercase tracking-[0.6em] opacity-60">SYSTEM v15</p>
         </div>
-        <div className="absolute bottom-20 flex flex-col items-center gap-4">
-           <div className="w-12 h-1 bg-white/5 rounded-full overflow-hidden">
+        <div className="absolute bottom-12 flex flex-col items-center gap-3">
+           <div className="w-8 h-0.5 bg-white/5 rounded-full overflow-hidden">
               <div className="h-full bg-[#00e676] w-1/2 animate-[loading_1.5s_infinite_ease-in-out]"></div>
            </div>
-           <span className="text-[10px] font-black text-[#8696a0] uppercase tracking-widest">تطوير م. تلاشاني</span>
+           <span className="text-[8px] font-black text-[#8696a0] uppercase tracking-widest">تلاشاني</span>
         </div>
         <style>{`
-          @keyframes loading {
-            0% { transform: translateX(-100%); }
-            100% { transform: translateX(200%); }
-          }
+          @keyframes loading { 0% { transform: translateX(-100%); } 100% { transform: translateX(200%); } }
         `}</style>
       </div>
     );
   }
 
   return (
-    <div className="h-screen w-full flex flex-col bg-[#0b141a] relative overflow-hidden">
+    <div className="h-screen w-full flex flex-col bg-[#0b141a] relative overflow-hidden items-center font-['Cairo']">
       <div className="absolute inset-0 chat-pattern"></div>
       
-      {/* Premium Header */}
-      <header className="bg-[#202c33] px-5 py-5 flex items-center justify-between shadow-2xl z-50 border-b border-white/5">
-        <div className="flex items-center gap-4">
-          <div className="w-12 h-12 rounded-full bg-[#00a884] flex items-center justify-center text-white border-2 border-white/10 shadow-2xl">
-            <Target className="w-7 h-7" />
-          </div>
-          <div>
-            <h1 className="text-xl font-bold text-white tracking-tight">رماية القاهرة</h1>
-            <div className="flex items-center gap-1.5 mt-0.5">
-               <span className="w-2.5 h-2.5 rounded-full bg-[#00e676] animate-pulse"></span>
-               <span className="text-[10px] font-black text-[#00e676] uppercase tracking-widest">نظام نشط</span>
+      <div className="w-full max-w-md h-full flex flex-col relative z-30 bg-[#0b141a] border-x border-white/5">
+        
+        {/* Compact Header */}
+        <header className="bg-[#202c33] px-4 py-3 flex items-center justify-between shadow-lg z-50">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-[#00a884] flex items-center justify-center text-white border border-white/10">
+              <Target className="w-5 h-5" />
+            </div>
+            <div>
+              <h1 className="text-base font-bold text-white tracking-tight">رماية القاهرة</h1>
+              <div className="flex items-center gap-1">
+                 <span className="w-1.5 h-1.5 rounded-full bg-[#00e676] animate-pulse"></span>
+                 <span className="text-[8px] font-black text-[#00e676] uppercase tracking-[0.3em]">Tlashani AI</span>
+              </div>
             </div>
           </div>
-        </div>
-        <div className="flex items-center gap-6 text-[#aebac1]">
-          <button onClick={() => setShowSupport(true)} className="hover:text-white"><Settings className="w-6 h-6" /></button>
-          <button className="hover:text-white"><MoreVertical className="w-6 h-6" /></button>
-        </div>
-      </header>
+          <div className="flex items-center gap-3 text-[#aebac1]">
+            <button onClick={() => setShowSupport(true)} className="p-2 active:bg-white/5 rounded-full transition-colors"><Settings className="w-5 h-5" /></button>
+            <button className="p-2 active:bg-white/5 rounded-full transition-colors"><MoreVertical className="w-5 h-5" /></button>
+          </div>
+        </header>
 
-      {/* Info Strip */}
-      <div className="bg-[#111b21]/95 backdrop-blur-xl px-8 py-3 flex justify-between border-b border-white/5 text-[12px] font-black text-[#8696a0] z-40">
-          <div className="flex items-center gap-2.5 uppercase tracking-tighter"><Users className="w-4.5 h-4.5 text-[#00e676]" /> العدد: <span className="text-white text-sm">{names.length}</span></div>
-          <div className="flex items-center gap-2.5 uppercase tracking-tighter"><Clock className="w-4.5 h-4.5 text-[#00e676]" /> {names[names.length-1]?.timestamp || '--:--'}</div>
+        {/* Dense Info Strip */}
+        <div className="bg-[#111b21]/90 backdrop-blur-md px-4 py-1.5 flex justify-between border-b border-white/5 text-[10px] font-bold text-[#8696a0] z-40">
+            <div className="flex items-center gap-1.5 uppercase"><Users className="w-3.5 h-3.5 text-[#00e676]" /> {names.length} مقيد</div>
+            <div className="flex items-center gap-1.5 uppercase"><Clock className="w-3.5 h-3.5 text-[#00e676]" /> {names[names.length-1]?.timestamp || '--:--'}</div>
+        </div>
+
+        {/* Responsive Trainee List */}
+        <main 
+          ref={scrollRef}
+          className="flex-1 overflow-y-auto px-3 py-6 space-y-4 no-scrollbar pb-40"
+        >
+          {names.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-full opacity-10 text-[#8696a0] text-center px-8 pointer-events-none">
+              <Scan className="w-12 h-12 mb-3" />
+              <p className="text-[10px] font-bold italic tracking-wide">النظام جاهز... ابدأ بتلقين الأسماء</p>
+            </div>
+          ) : (
+            names.map((item, index) => (
+              <div key={item.id} className="flex flex-col items-end animate-in fade-in slide-in-from-right-4 duration-300">
+                <div className="glass-card px-4 py-3 min-w-[140px] max-w-[85%] rounded-2xl rounded-tr-none shadow-xl border-white/10 ring-1 ring-white/5">
+                  <div className="flex items-start justify-between gap-4 mb-2">
+                    <div className="flex-1">
+                      {editingId === item.id ? (
+                        <input 
+                          autoFocus
+                          value={editValue}
+                          onChange={(e) => setEditValue(e.target.value)}
+                          onBlur={saveEdit}
+                          onKeyDown={(e) => e.key === 'Enter' && saveEdit()}
+                          className="bg-transparent border-b border-[#00e676] text-white w-full outline-none py-1 text-lg font-bold leading-relaxed"
+                        />
+                      ) : (
+                        <h4 
+                          onClick={() => { setEditingId(item.id); setEditValue(item.name); }}
+                          className="text-lg font-bold text-white tracking-tight cursor-pointer leading-normal break-words"
+                        >
+                          {item.name}
+                        </h4>
+                      )}
+                    </div>
+                    <button 
+                      onClick={() => deleteItem(item.id)} 
+                      className="text-white/30 hover:text-red-500/80 p-1 rounded-full active:bg-white/5 transition-all"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                  <div className="flex items-center justify-end gap-2 pt-1 border-t border-white/5 mt-1">
+                    <span className="text-[11px] font-bold text-[#8696a0] tracking-wider">{item.timestamp}</span>
+                    <CheckCheck className="w-4 h-4 text-[#53bdeb] opacity-80" />
+                  </div>
+                </div>
+              </div>
+            ))
+          )}
+          {isProcessing && (
+            <div className="flex flex-col items-start animate-pulse">
+               <div className="bg-[#202c33] px-4 py-2 rounded-2xl rounded-tr-none text-[10px] font-black text-[#00e676] border border-[#00e676]/20 shadow-lg">
+                  <span className="flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-[#00e676] animate-ping"></span>
+                    جارِ استيعاب الاسم...
+                  </span>
+               </div>
+            </div>
+          )}
+        </main>
+
+        {/* ERGONOMIC FAB LAYER (Optimized for Mobile) */}
+        <div className="absolute bottom-28 left-0 right-0 px-5 z-40 flex items-center justify-between pointer-events-none">
+           {/* Prominent Mic on the Left */}
+           <button 
+             onClick={isListening ? () => recognitionRef.current?.stop() : startListening}
+             className={`w-14 h-14 rounded-2xl flex items-center justify-center shadow-2xl transition-all active:scale-90 pointer-events-auto ring-1 ring-white/10 ${isListening ? 'bg-red-500 shadow-red-500/30' : 'bg-[#00e676] shadow-emerald-500/30'}`}
+           >
+             {isListening ? <MicOff className="w-6 h-6 text-white" /> : <Mic className="w-6 h-6 text-white" />}
+           </button>
+
+           {/* Export Stack on the Right */}
+           {names.length > 0 && (
+             <div className="flex items-center gap-2.5 pointer-events-auto">
+                <button 
+                  onClick={() => handleExportRequest(ExportFormat.CSV)} 
+                  className="w-11 h-11 bg-[#202c33] rounded-2xl flex items-center justify-center text-[#00e676] border border-white/10 shadow-lg active:scale-90 transition-transform hover:bg-[#2a3942]"
+                  title="CSV"
+                >
+                  <Table className="w-5 h-5" />
+                </button>
+                <button 
+                  onClick={() => handleExportRequest('DOC')} 
+                  className="w-11 h-11 bg-[#00a884] rounded-2xl flex items-center justify-center text-white border border-white/10 shadow-lg active:scale-90 transition-transform hover:bg-[#00c69c]"
+                  title="Word"
+                >
+                  <FileText className="w-5 h-5" />
+                </button>
+             </div>
+           )}
+        </div>
+
+        {/* Modern Bottom Bar */}
+        <footer className="bg-[#202c33] px-4 py-5 border-t border-white/5 z-50 flex justify-center">
+          <div className="w-full bg-[#2a3942] rounded-xl px-5 py-3 text-[12px] text-white/50 truncate font-bold text-center border border-white/5 shadow-inner">
+            {isListening ? (
+              <span className="text-[#00e676] font-black tracking-widest animate-pulse">جاري الاستماع الآن...</span>
+            ) : (
+              transcript || "تلاشاني: سجل أسماء المجندين بالصوت"
+            )}
+          </div>
+        </footer>
       </div>
 
-      {/* Main List */}
-      <main 
-        ref={scrollRef}
-        className="flex-1 overflow-y-auto px-5 py-8 space-y-4 no-scrollbar pb-40 z-30"
-      >
-        {names.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full opacity-30 text-[#8696a0] text-center px-14">
-            <Scan className="w-20 h-20 mb-6" />
-            <p className="text-sm font-bold italic">نظام التسجيل جاهز. تحدث بالأسماء لبدء القيد.</p>
-          </div>
-        ) : (
-          names.map((item, index) => (
-            <div key={item.id} className="flex flex-col items-end animate-in fade-in slide-in-from-right-10 duration-500">
-              <div className="glass-card p-4 min-w-[150px] max-w-[90%] rounded-2xl rounded-tr-none shadow-xl border-white/5">
-                <div className="flex items-start justify-between gap-4 mb-2">
-                  <div className="flex-1">
-                    {editingId === item.id ? (
-                      <input 
-                        autoFocus
-                        value={editValue}
-                        onChange={(e) => setEditValue(e.target.value)}
-                        onBlur={saveEdit}
-                        onKeyDown={(e) => e.key === 'Enter' && saveEdit()}
-                        className="bg-transparent border-b-2 border-[#00e676] text-white w-full outline-none py-1 text-xl font-black"
-                      />
-                    ) : (
-                      <h4 
-                        onClick={() => { setEditingId(item.id); setEditValue(item.name); }}
-                        className="text-xl font-bold text-white tracking-tight cursor-pointer"
-                      >
-                        {item.name}
-                      </h4>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-2 opacity-40 hover:opacity-100 transition-opacity">
-                    <button onClick={() => deleteItem(item.id)} className="text-red-500"><Trash2 className="w-4.5 h-4.5" /></button>
-                  </div>
-                </div>
-                <div className="flex items-center justify-end gap-1.5 border-t border-white/5 pt-2">
-                  <span className="text-[11px] font-bold text-[#8696a0]">{item.timestamp}</span>
-                  <CheckCheck className="w-4 h-4 text-[#53bdeb]" />
-                </div>
-              </div>
-            </div>
-          ))
-        )}
-        {isProcessing && (
-          <div className="flex flex-col items-start animate-pulse">
-             <div className="bg-[#202c33] p-4 rounded-xl rounded-tr-none text-xs font-black text-[#00e676] border border-[#00e676]/10">
-                جارِ استخراج الأسماء...
-             </div>
-          </div>
-        )}
-      </main>
-
-      {/* Floating Export Controls */}
-      {names.length > 0 && (
-        <div className="absolute bottom-28 left-0 right-0 px-5 z-40">
-           <div className="bg-[#202c33]/95 backdrop-blur-2xl p-3 rounded-[2.5rem] flex items-center justify-between shadow-2xl border border-white/10">
-              <button 
-                onClick={() => handleExportRequest('DOC')}
-                className="flex-1 bg-[#00a884] text-white h-14 rounded-full flex items-center justify-center gap-3 text-sm font-black active:scale-95 transition-all shadow-lg shadow-emerald-500/20"
-              >
-                <FileText className="w-6 h-6" /> حفظ جدول Word
-              </button>
-              <div className="flex gap-2 pl-3">
-                 <button onClick={() => handleExportRequest(ExportFormat.CSV)} className="w-14 h-14 bg-[#111b21] rounded-full flex items-center justify-center text-[#00e676] border border-white/5"><Table className="w-5.5 h-5.5" /></button>
-                 <button onClick={() => handleExportRequest(ExportFormat.TXT)} className="w-14 h-14 bg-[#111b21] rounded-full flex items-center justify-center text-blue-400 border border-white/5"><Download className="w-5.5 h-5.5" /></button>
-              </div>
-           </div>
-        </div>
-      )}
-
-      {/* Bottom Voice Bar */}
-      <footer className="bg-[#202c33] px-5 py-5 flex items-center gap-4 border-t border-white/5 z-50">
-        <div className="flex-1 bg-[#2a3942] rounded-3xl px-6 py-4 text-sm text-white/90 truncate font-bold shadow-inner">
-          {isListening ? (
-             <span className="text-[#00e676] font-black animate-pulse">جاري الاستماع...</span>
-          ) : (
-            transcript || "اضغط للتحدث"
-          )}
-        </div>
-        <button 
-          onClick={isListening ? () => recognitionRef.current?.stop() : startListening}
-          className={`w-16 h-16 rounded-full flex items-center justify-center shadow-2xl transition-all active:scale-90 ${isListening ? 'bg-red-500 shadow-red-500/40 ring-4 ring-red-500/10' : 'bg-[#00e676] shadow-emerald-500/30 ring-4 ring-emerald-500/10'}`}
-        >
-          {isListening ? <MicOff className="w-8 h-8 text-white" /> : <Mic className="w-8 h-8 text-white" />}
-        </button>
-      </footer>
-
-      {/* Export Naming Modal */}
+      {/* COMPACT NAMING MODAL */}
       {showExportModal && (
-        <div className="fixed inset-0 z-[200] bg-black/80 backdrop-blur-md flex items-center justify-center p-6 animate-in fade-in duration-300">
-          <div className="w-full max-w-sm bg-[#111b21] rounded-[2.5rem] p-8 border border-white/10 shadow-2xl animate-in zoom-in-95 duration-300">
-            <h3 className="text-xl font-black text-white mb-6 text-center">تسمية الملف قبل الحفظ</h3>
+        <div className="fixed inset-0 z-[200] bg-black/80 backdrop-blur-md flex items-center justify-center p-6 animate-in fade-in duration-200">
+          <div className="w-full max-w-[300px] bg-[#111b21] rounded-[2.5rem] p-6 border border-white/10 shadow-2xl animate-in zoom-in-95 duration-200">
+            <h3 className="text-lg font-black text-white mb-5 text-center tracking-tight">تسمية الكشف</h3>
             <div className="space-y-4">
-               <div className="bg-[#202c33] p-4 rounded-2xl border border-white/5">
-                  <p className="text-[10px] font-black text-[#8696a0] uppercase mb-2">اسم الملف المراد حفظه</p>
-                  <input 
-                    autoFocus
-                    value={fileName}
-                    onChange={(e) => setFileName(e.target.value)}
-                    className="bg-transparent text-white font-bold text-lg w-full outline-none border-b border-[#00e676] py-1"
-                    placeholder="أدخل اسم الملف..."
-                  />
-               </div>
-               <div className="flex gap-3 pt-4">
+               <input 
+                 autoFocus
+                 value={fileName}
+                 onChange={(e) => setFileName(e.target.value)}
+                 className="bg-[#202c33] text-white font-bold text-md w-full outline-none border border-white/10 rounded-2xl px-5 py-3.5 text-center focus:border-[#00e676]/50 focus:ring-1 focus:ring-[#00e676]/50 transition-all placeholder:text-white/20"
+                 placeholder="مثلاً: كشف الرماية 1"
+               />
+               <div className="flex gap-2.5 pt-2">
                   <button 
-                    onClick={() => setShowExportModal(false)}
-                    className="flex-1 py-4 bg-[#202c33] rounded-2xl text-sm font-black text-[#8696a0] active:scale-95 transition-all"
+                    onClick={() => setShowExportModal(false)} 
+                    className="flex-1 py-3.5 bg-[#202c33] rounded-2xl text-[11px] font-black text-[#8696a0] active:opacity-60 transition-opacity border border-white/5"
                   >
                     إلغاء
                   </button>
                   <button 
-                    onClick={confirmExport}
-                    className="flex-[2] py-4 bg-[#00e676] rounded-2xl text-sm font-black text-[#0b141a] flex items-center justify-center gap-2 active:scale-95 transition-all shadow-lg shadow-emerald-500/20"
+                    onClick={confirmExport} 
+                    className="flex-[2] py-3.5 bg-[#00e676] rounded-2xl text-[11px] font-black text-[#0b141a] active:scale-95 transition-transform shadow-lg shadow-emerald-500/20"
                   >
-                    <Save className="w-5 h-5" /> تأكيد وحفظ
+                    تأكيد الحفظ
                   </button>
                </div>
             </div>
@@ -371,43 +402,42 @@ const App: React.FC = () => {
         </div>
       )}
 
-      {/* Support Sheet */}
+      {/* ANDROID-STYLE SUPPORT SHEET */}
       {showSupport && (
-        <div className="fixed inset-0 z-[100] bg-black/85 backdrop-blur-xl flex items-end justify-center animate-in fade-in duration-300">
-          <div className="w-full max-w-md bg-[#111b21] rounded-t-[4rem] p-12 border-t border-[#00e676]/30 shadow-2xl animate-in slide-in-from-bottom duration-500">
-            <div className="w-16 h-1.5 bg-[#3b4a54] rounded-full mx-auto mb-12"></div>
-            <div className="flex flex-col items-center mb-14 text-center">
-              <div className="w-24 h-24 bg-[#00e676] rounded-[2rem] flex items-center justify-center shadow-[0_0_40px_rgba(0,230,118,0.4)] mb-8 rotate-12">
-                <Target className="w-14 h-14 text-[#0b141a]" />
+        <div className="fixed inset-0 z-[100] bg-black/85 backdrop-blur-md flex items-end justify-center animate-in fade-in duration-300">
+          <div className="w-full max-w-md bg-[#111b21] rounded-t-[3rem] p-8 border-t border-[#00e676]/30 shadow-2xl animate-in slide-in-from-bottom-full duration-400">
+            <div className="w-12 h-1.5 bg-[#3b4a54] rounded-full mx-auto mb-8 opacity-50"></div>
+            
+            <div className="flex flex-col items-center mb-10">
+              <div className="w-20 h-20 bg-[#00e676] rounded-3xl flex items-center justify-center shadow-2xl mb-5 rotate-12 transition-transform hover:rotate-0">
+                <Target className="w-12 h-12 text-[#0b141a]" />
               </div>
-              <h2 className="text-4xl font-black italic text-white mb-1">تلاشاني</h2>
-              <span className="text-[10px] font-black text-[#00e676] uppercase tracking-[0.7em]">Advanced Military Systems</span>
+              <h2 className="text-3xl font-black italic text-white tracking-tighter">تلاشاني</h2>
+              <span className="text-[10px] font-black text-[#00e676] uppercase tracking-[0.5em] mt-2 opacity-80">Advanced Military Logic</span>
             </div>
-            <div className="space-y-4 mb-14">
-              <a href="tel:01140029315" className="flex items-center justify-between p-6 bg-[#202c33] rounded-3xl border border-white/5 active:bg-[#2a3942] transition-all">
-                <div className="flex items-center gap-5">
-                  <div className="w-14 h-14 bg-[#00e676]/10 flex items-center justify-center text-[#00e676] rounded-2xl"><Phone className="w-7 h-7" /></div>
-                  <div>
-                    <p className="text-[10px] font-bold text-[#8696a0] uppercase mb-1">الدعم الفني</p>
-                    <p className="font-black text-2xl text-white tracking-tighter" dir="ltr">01140029315</p>
-                  </div>
+            
+            <div className="space-y-3.5 mb-10">
+              <a href="https://wa.me/201282735262" target="_blank" rel="noreferrer" className="flex items-center gap-5 p-5 bg-[#202c33] rounded-[2rem] border border-white/10 active:bg-[#2a3942] transition-all group">
+                <div className="w-12 h-12 bg-emerald-500/10 flex items-center justify-center text-[#00e676] rounded-2xl group-active:scale-90 transition-transform"><MessageCircle className="w-6 h-6" /></div>
+                <div className="text-right flex-1">
+                  <p className="text-[9px] font-black text-[#8696a0] uppercase tracking-wider mb-0.5">واتساب الدعم المباشر</p>
+                  <p className="font-black text-xl text-white tracking-tighter" dir="ltr">01282735262</p>
                 </div>
               </a>
-              <a href="https://t.me/Tlashani" target="_blank" rel="noreferrer" className="flex items-center justify-between p-6 bg-[#202c33] rounded-3xl border border-white/5 active:bg-[#2a3942] transition-all">
-                <div className="flex items-center gap-5">
-                  <div className="w-14 h-14 bg-blue-500/10 flex items-center justify-center text-[#0088cc] rounded-2xl"><MessageCircle className="w-7 h-7" /></div>
-                  <div>
-                    <p className="text-[10px] font-bold text-[#8696a0] uppercase mb-1">تليجرام</p>
-                    <p className="font-black text-2xl text-white tracking-tighter" dir="ltr">@Tlashani</p>
-                  </div>
+              <a href="https://t.me/+201282735262" target="_blank" rel="noreferrer" className="flex items-center gap-5 p-5 bg-[#202c33] rounded-[2rem] border border-white/10 active:bg-[#2a3942] transition-all group">
+                <div className="w-12 h-12 bg-blue-500/10 flex items-center justify-center text-[#0088cc] rounded-2xl group-active:scale-90 transition-transform"><Send className="w-6 h-6" /></div>
+                <div className="text-right flex-1">
+                  <p className="text-[9px] font-black text-[#8696a0] uppercase tracking-wider mb-0.5">تليجرام المطور</p>
+                  <p className="font-black text-xl text-white tracking-tighter" dir="ltr">@Tlashani</p>
                 </div>
               </a>
             </div>
+            
             <button 
               onClick={() => setShowSupport(false)} 
-              className="w-full py-5 rounded-3xl bg-[#00e676] text-xl font-black text-[#0b141a] active:scale-95 transition-all shadow-xl"
+              className="w-full py-4.5 rounded-[2rem] bg-[#00e676] text-lg font-black text-[#0b141a] active:scale-95 transition-all shadow-xl shadow-emerald-500/10 mb-2"
             >
-              إغلاق
+              العودة للبرنامج
             </button>
           </div>
         </div>
